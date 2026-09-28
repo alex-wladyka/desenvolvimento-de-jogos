@@ -1,0 +1,53 @@
+Vector2D.cpp — como foi implementado
+=====================================
+
+O arquivo Vector2D.hpp já define a struct e a assinatura de cada método;
+os comentarios Doxygen (@pre, @post, @invariant) nele foram tratados como
+contrato: Vector2D.cpp implementa exatamente o que esses comentarios prometem,
+sem adicionar comportamento além do descrito.
+
+Dependência nova: Global.hpp
+-----------------------------
+Vector2D.hpp já incluía "Global.hpp" esperando uma constante EPSILON, mas o
+arquivo não existia no repositório. Foi criado source/Global.hpp com:
+
+    inline constexpr float EPSILON = 1e-6f;
+
+usada como tolerância padrão em comparações de ponto flutuante (equals) e
+como limiar de "quase zero" nas pré-condições (normalize, normalized,
+operator/, operator/=).
+
+Métodos implementados
+----------------------
+- normalized() / normalize(): dividem o vetor pelo próprio length(). A
+  pré-condição "length() > EPSILON" (vetor não pode ser o vetor zero, pois
+  não tem direção definida) é verificada com assert() — viola o contrato,
+  vira erro em build de debug em vez de dividir por (quase) zero em
+  silêncio.
+
+- equals(rhs, tolerance): compara x e y independentemente, dentro da
+  tolerância, em vez de comparar a distância euclidiana total — mais barato
+  (sem sqrt) e evita falso-positivo quando um eixo erra muito e o outro
+  compensa.
+
+- operator+, operator-, operator*(scalar): operações componente a
+  componente, sem pré-condição, por isso marcados noexcept como no header.
+
+- operator/(scalar) e operator/=(scalar): mesma pré-condição de "escalar
+  longe de zero" (abs(scalar) > EPSILON), também via assert(), por isso
+  essas duas assinaturas não são noexcept no header.
+
+- operator+=, operator-=, operator*=: versões in-place das operações acima,
+  retornam *this por referência para permitir encadeamento (a += b += c).
+
+- operator*(float, const Vector2D&) (não-membro): implementado em termos do
+  operator*(scalar) membro, só invertendo a ordem dos operandos, para que
+  "2.0f * v" e "v * 2.0f" tenham o mesmo resultado sem duplicar lógica.
+
+Decisões de projeto
+--------------------
+- Pré-condições (@pre) viram assert(), não exceções: é uma lib de math para
+  jogo, código quente, então violação de contrato é bug do chamador a ser
+  pego em debug/teste, não erro recuperável em runtime de release.
+- Nenhum método novo foi criado além do que o header já declarava — o
+  header é o contrato, o .cpp só cumpre ele.
